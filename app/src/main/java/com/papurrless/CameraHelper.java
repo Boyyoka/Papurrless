@@ -1,18 +1,12 @@
 package com.papurrless;
 
-import android.app.Activity;
 import android.content.Context;
-import android.graphics.Rect;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
-import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
 import android.widget.Toast;
-
-import java.security.Policy;
-import java.util.Collections;
 import java.util.List;
 
 /**

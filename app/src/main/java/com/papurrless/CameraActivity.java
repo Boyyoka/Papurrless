@@ -1,165 +1,125 @@
 package com.papurrless;
 
-import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
-import android.graphics.drawable.Drawable;
-import android.hardware.Camera;
-import android.os.AsyncTask;
-import android.os.Debug;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+import android.net.Uri;
 import android.os.Bundle;
-import android.view.MotionEvent;
-import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.Toast;
+import android.widget.ImageView;
 
-/** Please refer to the following links:
- *
- *  http://www.codeproject.com/Articles/840623/Android-Character-Recognition
- *  http://www.c-sharpcorner.com/UploadFile/9e8439/how-to-make-a-custom-camera-ion-android
- *
- */
+import com.getbase.floatingactionbutton.FloatingActionButton;
+import com.scanlibrary.ScanActivity;
 
-public class CameraActivity extends AppCompatActivity implements SurfaceHolder.Callback, OnClickListener, Camera.PictureCallback, Camera.ShutterCallback {
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
-    private CameraHelper cameraHelper;
-    private Button shutterButton;
-    private SurfaceView cameraFrame;
-    private ImageHelper imageHelper;
-    private TessHelper tessHelper;
-    private int cameraId;
+public class CameraActivity extends AppCompatActivity {
+    final int REQUEST_TAKE_PHOTO = 1;
+    final int REQUEST_IMAGE_CAPTURE = 1;
+    String mCurrentPhotoPath;
+    ScanActivity scanActivity = new ScanActivity();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_camera);
-        shutterButton = (Button) findViewById(R.id.snap);
-        cameraId=Camera.CameraInfo.CAMERA_FACING_BACK;
-        cameraFrame=(SurfaceView) findViewById(R.id.surfaceView);
-        shutterButton.setOnClickListener(this);
-        imageHelper = new ImageHelper(this);
-        tessHelper = new TessHelper(this);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(R.layout.activity_main_screen);
 
-    }
-    /**
-     *  http://stackoverflow.com/questions/14678593/the-application-may-be-doing-too-much-work-on-its-main-thread
-     *  http://stackoverflow.com/questions/22271685/issue-with-the-android-camera-and-thread-safety
-     *
-     * */
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
-        final SurfaceHolder h = holder;
-        Thread cameraThread = new Thread() {
-            @Override
-            public void run() {
-                if (cameraHelper != null && !cameraHelper.isActive())
+
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        fab.setOnClickListener(
+                new View.OnClickListener()
                 {
-                    cameraHelper.startCamera(cameraId);
-                } else if (cameraHelper != null && cameraHelper.isActive())
+                    @Override
+                    public void onClick(View view) {
+                        //start onclick camera part
+                        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                        // Ensure that there's a camera activity to handle the intent
+                        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+                            // Create the File where the photo should go
+                            File photoFile = null;
+                            try {
+                                photoFile = createImageFile();
+                            } catch (IOException ex) {
+                                // Error occurred while creating the File
+                                Log.d("cam","could not create file");
+                            }
+                            // Continue only if the File was successfully created
+                            if (photoFile != null) {
+                                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT,
+                                        Uri.fromFile(photoFile));
+                                startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO);
+                            }
+                        }
+                    }
 
-                {
-                    //Camera is already activated
-                    return;
-                } else
+                        /*Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                            if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+                                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+                            }
+                        }*/
+                    //end onclick camera part
+                });
+    }
 
-                {
-                    cameraHelper = CameraHelper.New(h, CameraActivity.this);
-                    cameraHelper.startCamera(cameraId);
-                }
-            }
-        };
-        cameraThread.start();
 
+
+    private File createImageFile() throws IOException {
+        // Create an image file name
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        Log.d("cam",timeStamp);
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        Log.d("cam",imageFileName);
+        File storageDir = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES);
+        Log.d("files",storageDir.getAbsolutePath());
+        File image = File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
+        Log.d("files",image.getAbsolutePath());
+        // Save a file: path for use with ACTION_VIEW intents
+        mCurrentPhotoPath = "file:" + image.getAbsolutePath();
+        return image;
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
-    }
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-
-    }
-
-    @Override
-    public void onResume(){
-        super.onResume();
-
-        SurfaceHolder surfaceHolder = cameraFrame.getHolder();
-        surfaceHolder.addCallback(this);
-        surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-
-    }
-
-    @Override
-    public void onPause(){
-        super.onPause();
-
-        if(cameraHelper != null && cameraHelper.isActive()){
-            cameraHelper.stopCamera(cameraId);
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK) {
+           //Bitmap result = scanActivity.getBWBitmap(BitmapFactory.decodeFile(mCurrentPhotoPath));;
+            ImageView myImageView =  (ImageView) findViewById(R.id.mImageView);
+            myImageView.setImageBitmap(BitmapFactory.decodeFile(mCurrentPhotoPath));
         }
-        SurfaceHolder surfaceHolder = cameraFrame.getHolder();
-        surfaceHolder.removeCallback(this);
     }
-
+/*
     @Override
-    public void onClick(View v) {
-        if(v == shutterButton){
-
-            if(cameraHelper != null && cameraHelper.isActive()){
-
-                cameraHelper.captureImage(this, this, this);
-            }
-        }
-    }
-
-
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main_screen, menu);
+        return true;
+    }*/
+/*
     @Override
-    public void onPictureTaken(byte[] data, Camera camera) {
-        if(data == null){
-            return;
-        }
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
 
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = 4;
-
-        Bitmap capturedImage = BitmapFactory.decodeByteArray(data, 0, data.length);
-
-        try{
-
-            Matrix rotateMatrix = new Matrix();
-            rotateMatrix.postRotate(cameraHelper.getRotation());
-
-            Bitmap rotatedBitmap = Bitmap.createBitmap(capturedImage, 0, 0, capturedImage.getWidth(), capturedImage.getHeight(), rotateMatrix, false);
-            rotatedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, capturedImage.getWidth() * 2, capturedImage.getHeight() * 2, false);
-            //rotatedBitmap = imageHelper.processImage(rotatedBitmap);
-            rotatedBitmap = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true);
-            Toast.makeText(this,tessHelper.detectText(rotatedBitmap), Toast.LENGTH_LONG).show();
-        }
-        catch(Exception ex){
-            ex.printStackTrace();
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            return true;
         }
 
-
-
-
-        //imageHelper.processImage(tessImage);
-
+        return super.onOptionsItemSelected(item);
     }
-
-    @Override
-    public void onShutter() {
-
-    }
-
+    */
 }
